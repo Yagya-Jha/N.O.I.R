@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOIR | Orbital Monitoring Matrix</title>
+    <link rel="icon" type="image/webp" href="images/logo.webp">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- The star background container -->
+    <div class="stars-overlay"></div>
+
+    <!-- MAIN NAVBAR -->
+    <nav class="navbar">
+        <div class="logo">
+            <img src="images/logo.webp" alt="NOIR Logo" class="logo-img">
+            <span>NOIR</span>
+        </div>
+        <div class="nav-links">
+            <button onclick="showPage('home')" id="nav-home" class="nav-btn active">HOME</button>
+            <button onclick="showPage('about')" id="nav-about" class="nav-btn">ABOUT US</button>
+        </div>
+    </nav>
+
+    <main id="content">
+        <!-- HOME PAGE -->
+        <section id="home-page" class="page active">
+            <div class="hero">
+                <h1 class="main-title">N O I R</h1>
+                <div class="hero-center">
+                    <a href="scan.html" class="scan-btn" style="text-decoration: none; display: inline-block;">INITIATE SCAN</a>
+                </div>
+            </div>
+
+            <div class="section-divider">MISSION OVERVIEW</div>
+            <div class="telemetry-grid">
+                <div class="card">
+                    <div class="card-header">OPERATIONAL TELEMETRY // 01</div>
+                    <h2>Orbital Debris Detection</h2>
+                    <p>Real-time monitoring and analysis of space debris to ensure the safety of orbital infrastructure and astronauts.</p>
+                    <div class="card-corner tl"></div>
+                    <div class="card-corner br"></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">OPERATIONAL TELEMETRY // 02</div>
+                    <h2>Impact Analysis</h2>
+                    <p>Advanced predictive modeling to determine collision risks and provide actionable avoidance maneuvers.</p>
+                    <div class="card-corner tl"></div>
+                    <div class="card-corner br"></div>
+                </div>
+            </div>
+
+            <div class="section-divider">SIMULATION COMMAND PROTOCOLS</div>
+            <div class="telemetry-grid">
+                <div class="card">
+                    <div class="card-header">INTERACTION // 01</div>
+                    <h2>Orbital Controls</h2>
+                    <p>• <strong>Single Left-Click:</strong> Deploy a randomized debris object into the orbital field.<br>
+                       • <strong>Double Left-Click:</strong> Generate a high-risk debris fragment on a direct intercept course with the shuttle.<br>
+                       • <strong>Right-Click:</strong> Initialize tracking for a specific object to view real-time data.</p>
+                    <div class="card-corner tl"></div>
+                    <div class="card-corner br"></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">DASHBOARD // 02</div>
+                    <h2>Tactical Interface</h2>
+                    <p>The left-hand dashboard provides positioning data for the Space Shuttle. Use "Tactical Scan" to identify the five nearest debris threats.</p>
+                    <div class="card-corner tl"></div>
+                    <div class="card-corner br"></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">FUTURE HORIZON // 03</div>
+                    <h2>Data Integrity</h2>
+                    <p>Current visuals use simulated data. Future roadmaps include integrating real-world orbital datasets for live collision avoidance.</p>
+                    <div class="card-corner tl"></div>
+                    <div class="card-corner br"></div>
+                </div>
+                <div class="card">
+                    <div class="card-header">NAVIGATION // 04</div>
+                    <h2>Spatial Awareness</h2>
+                    <p>Use the scroll wheel to zoom and click-drag the background to pan through the orbital sector for comprehensive inspection.</p>
+                    <div class="card-corner tl"></div>
+                    <div class="card-corner br"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABOUT PAGE -->
+        <section id="about-page" class="page">
+            <div class="about-hero">
+                <h1 class="about-title">N O I R</h1>
+                <p class="subtitle">NEAR ORBIT IMPACT REPORTER</p>
+            </div>
+            <div class="protocol-box">
+                <div class="protocol-header">PROJECT PROTOCOL</div>
+                <p>NOIR is a high-precision orbital monitoring matrix designed to visualize and report near-orbit debris and impact threats.</p>
+                <a href="https://github.com/Yagya-Jha/N.O.I.R" target="_blank" class="repo-link">ACCESS REPOSITORY &rarr;</a>
+            </div>
+            <div class="team-section">
+                <div class="section-divider">TEAM DEVELOPERS</div>
+                <div class="team-grid">
+                    <div class="team-card">
+                        <div class="img-container">
+                            <img src="images/a.webp" alt="Abhinav" class="team-img">
+                        </div>
+                        <h3>ABHINAV TIWARI</h3>
+                    </div>
+                    <div class="team-card">
+                        <div class="img-container">
+                            <img src="images/d.webp" alt="Daksh" class="team-img">
+                        </div>
+                        <h3>DAKSH DIXIT</h3>
+                    </div>
+                    <div class="team-card">
+                        <div class="img-container">
+                            <img src="images/y.JPG" alt="Yagya" class="team-img">
+                        </div>
+                        <h3>YAGYA JHA</h3>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <h2 class="footer-logo">N O I R</h2>
+        <p class="footer-tagline">NEAR ORBIT IMPACT REPORTER</p>
+        <div class="copyright">© 2025 NOIR ALL RIGHTS RESERVED</div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

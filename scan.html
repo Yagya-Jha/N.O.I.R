@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N.O.I.R. | Near Orbit Impact Reporter</title>
+    <!-- CesiumJS Styles and Script -->
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.108/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.108/Build/Cesium/Cesium.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        #cesiumContainer {
+            width: 100%;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+        }
+        .hud-panel {
+            background: rgba(2, 6, 12, 0.95);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 255, 255, 0.1);
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+        }
+        @keyframes pulse-danger {
+            0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); border-color: rgba(239, 68, 68, 0.5); }
+            70% { box-shadow: 0 0 0 20px rgba(220, 38, 38, 0); border-color: rgba(239, 68, 68, 1); }
+            100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); border-color: rgba(239, 68, 68, 0.5); }
+        }
+        .collision-danger {
+            animation: pulse-danger 0.6s infinite;
+            background: rgba(45, 0, 0, 0.95) !important;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 28px;
+            height: 16px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #1e293b;
+            transition: .4s;
+            border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 10px; width: 10px;
+            left: 3px; bottom: 3px;
+            background-color: #64748b;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #0891b2; }
+        input:checked + .slider:before { transform: translateX(12px); background-color: #fff; }
+        
+        @keyframes scan-ring {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(4); opacity: 0; }
+        }
+        .scanning-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 200px;
+            height: 200px;
+            margin-left: -100px;
+            margin-top: -100px;
+            border: 2px solid rgba(0, 255, 255, 0.5);
+            border-radius: 50%;
+            pointer-events: none;
+            display: none;
+            animation: scan-ring 1.5s ease-out;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body class="bg-black text-slate-300 font-mono select-none overflow-hidden">
+
+    <div id="scanningEffect" class="scanning-ring"></div>
+
+    <!-- Primary HUD (Top Left) -->
+    <div class="absolute top-6 left-6 z-10 space-y-4 pointer-events-none w-85">
+        <div id="statusPanel" class="hud-panel p-6 rounded-lg transition-all duration-300 pointer-events-auto border-l-4 border-l-cyan-600">
+            <div class="flex justify-between items-start mb-1">
+                <h1 class="text-2xl font-black tracking-[0.2em] text-white">N.O.I.R.</h1>
+                <div class="text-[8px] bg-cyan-500 px-1.5 py-0.5 rounded text-black font-bold">V3.5 PRO</div>
+            </div>
+            <p class="text-[9px] text-cyan-500/80 mb-4 tracking-wider uppercase font-bold leading-tight">Near Orbit Impact Reporter</p>
+            
+            <div class="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] uppercase border-b border-white/10 pb-3 mb-3">
+                <span class="text-slate-500">Alt MSL</span> <span id="altVal" class="text-white text-right">--</span>
+                <span class="text-slate-500">Coord Ref</span> <span id="locVal" class="text-white text-right">--</span>
+                <span class="text-slate-500">Active Dec</span> <span id="countVal" class="text-yellow-500 text-right">0</span>
+                <span class="text-slate-500">Impact Prob</span> <span id="probVal" class="text-white text-right">0%</span>
+            </div>
+
+            <div id="proximityPanel" class="space-y-3">
+                <div id="targetDisplay" class="bg-white/5 p-3 border border-white/10 rounded hidden">
+                    <div class="flex justify-between items-center mb-2 border-b border-white/10 pb-1">
+                        <span id="targetName" class="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">ANALYSIS PENDING</span>
+                        <button onclick="clearTarget()" class="text-[9px] text-slate-500 hover:text-white pointer-events-auto transition-colors">[X]</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-y-1 text-[10px] text-slate-300 uppercase">
+                        <span class="opacity-60">Slant Range:</span> <span id="targetDist" class="text-right font-bold">--</span>
+                        <span class="opacity-60">Relative CPA:</span> <span id="targetCpa" class="text-right font-bold">--</span>
+                        <span class="opacity-60">Kinetic Risk:</span> <span id="targetProb" class="text-right font-bold">--</span>
+                    </div>
+                </div>
+
+                <div id="proximityDisplay" class="hidden">
+                    <div class="flex justify-between text-[10px] mb-1 uppercase font-bold text-slate-500">
+                        <span>L-Range Warning</span>
+                        <span id="closestDist" class="text-white">--</span>
+                    </div>
+                    <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+                        <div id="distBar" class="h-full bg-cyan-500 transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-4 pt-3 border-t border-white/10 space-y-3">
+                <div class="flex justify-between items-center text-[9px] uppercase font-bold tracking-widest">
+                    <span class="text-slate-500">Occlusion Filter</span>
+                    <label class="switch">
+                        <input type="checkbox" id="depthToggle" onchange="toggleOcclusion()">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <button onclick="triggerScan()" class="w-full bg-cyan-900/40 hover:bg-cyan-500 hover:text-black border border-cyan-500/50 py-2 rounded text-[10px] font-bold uppercase tracking-widest transition-all">
+                    Initiate Tactical Scan
+                </button>
+            </div>
+
+            <div id="alertContainer" class="mt-4 space-y-2">
+                <div id="warningAlert" class="hidden p-2 text-center font-bold bg-yellow-500 text-black rounded text-[10px] uppercase tracking-tighter">
+                    Proximity Violation Detected
+                </div>
+                <div id="dangerAlert" class="hidden p-2 text-center font-bold bg-red-600 text-white rounded text-[10px] uppercase animate-pulse tracking-widest">
+                    Impact Imminent
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Button (Bottom Left) -->
+    <div class="absolute bottom-6 left-6 z-10 pointer-events-auto">
+        <a href="./index.html" class="hud-panel px-4 py-2 rounded border border-white/10 text-[10px] font-bold uppercase tracking-widest hover:bg-purple-600 hover:text-white hover:border-purple-400 transition-all duration-300 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            System Root
+        </a>
+    </div>
+
+    <!-- Command Logic HUD (Bottom Right) -->
+    <div class="absolute bottom-6 right-6 z-10 w-72 pointer-events-none">
+        <div class="hud-panel p-4 rounded-lg text-[10px] opacity-80 pointer-events-auto border-r-4 border-r-slate-700">
+            <p class="font-bold text-cyan-500 mb-2 text-[11px] uppercase tracking-widest border-b border-white/10 pb-1">Command Logic</p>
+            <div class="space-y-1.5 text-slate-400">
+                <div class="flex justify-between">
+                    <span>Single Click</span> <span class="text-white text-right">Deploy Marker</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Double Click</span> <span class="text-white text-right">Intercept Vector</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Right Click</span> <span class="text-white text-right">Designate Target</span>
+                </div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-white/5 text-[9px] italic text-slate-500 text-center">
+                STS-ALPHA (Yellow) follows projected orbital path.
+            </div>
+        </div>
+    </div>
+
+    <div id="cesiumContainer"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            Cesium.Ion.defaultAccessToken = ''; 
+
+            const DETECTION_RANGE = 500.0;
+            const DANGER_RANGE = 50.0;
+            const LOOKAHEAD = 30; 
+            
+            let trackedObjects = [];
+            let shuttleEntity = null;
+            let pathEntity = null;
+            let targetPathEntity = null; // New trajectory for debris
+            let selectedObject = null;
+            let clickTimer = null;
+            let occludeDebris = false;
+
+            const viewer = new Cesium.Viewer('cesiumContainer', {
+                baseLayerPicker: false,
+                geocoder: false,
+                homeButton: false,
+                infoBox: false,
+                navigationHelpButton: false,
+                sceneModePicker: true, 
+                timeline: false,
+                animation: false,
+                selectionIndicator: true, 
+                baseLayer: new Cesium.ImageryLayer(new Cesium.OpenStreetMapImageryProvider({
+                    url : 'https://a.tile.openstreetmap.org/'
+                })),
+                creditContainer: document.createElement('div') 
+            });
+
+            viewer.scene.globe.show = true;
+            viewer.scene.skyAtmosphere.show = true;
+            viewer.scene.globe.enableLighting = true;
+
+            function createShuttle() {
+                shuttleEntity = viewer.entities.add({
+                    id: 'SHUTTLE_MASTER',
+                    name: 'STS-ALPHA',
+                    position: Cesium.Cartesian3.fromDegrees(0, 0, 400000),
+                    point: { 
+                        pixelSize: 14, 
+                        color: Cesium.Color.YELLOW, 
+                        outlineColor: Cesium.Color.BLACK, 
+                        outlineWidth: 2, 
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY 
+                    },
+                    label: { 
+                        text: 'STS-ALPHA', 
+                        font: 'bold 12px monospace', 
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE, 
+                        outlineWidth: 2, 
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM, 
+                        pixelOffset: new Cesium.Cartesian2(0, -15), 
+                        fillColor: Cesium.Color.YELLOW, 
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY 
+                    }
+                });
+                shuttleEntity.vel = { lon: 0.04, lat: 0.01, alt: 0 };
+
+                // Create orbital path forecast with improved visibility
+                pathEntity = viewer.entities.add({
+                    polyline: {
+                        positions: new Cesium.CallbackProperty(() => {
+                            const positions = [];
+                            const now = Cesium.JulianDate.now();
+                            const currentPos = shuttleEntity.position.getValue(now);
+                            if (!currentPos) return [];
+                            for (let i = 0; i < 400; i += 10) {
+                                positions.push(getFuturePos(currentPos, shuttleEntity.vel, i));
+                            }
+                            return positions;
+                        }, false),
+                        width: 3,
+                        material: new Cesium.PolylineDashMaterialProperty({
+                            color: Cesium.Color.CYAN,
+                            dashLength: 20,
+                            gapColor: Cesium.Color.TRANSPARENT
+                        }),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    }
+                });
+
+                // New Target Trajectory (Red)
+                targetPathEntity = viewer.entities.add({
+                    polyline: {
+                        show: false,
+                        positions: new Cesium.CallbackProperty(() => {
+                            if (!selectedObject) return [];
+                            const positions = [];
+                            const now = Cesium.JulianDate.now();
+                            const currentPos = selectedObject.entity.position.getValue(now);
+                            if (!currentPos) return [];
+                            for (let i = 0; i < 400; i += 10) {
+                                positions.push(getFuturePos(currentPos, selectedObject.vel, i));
+                            }
+                            return positions;
+                        }, false),
+                        width: 3,
+                        material: new Cesium.PolylineDashMaterialProperty({
+                            color: Cesium.Color.RED,
+                            dashLength: 20,
+                            gapColor: Cesium.Color.TRANSPARENT
+                        }),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    }
+                });
+
+                viewer.zoomTo(shuttleEntity, new Cesium.HeadingPitchRange(0, -1.2, 2000000));
+            }
+
+            window.toggleOcclusion = function() {
+                occludeDebris = document.getElementById('depthToggle').checked;
+                updateDepthSettings();
+            };
+
+            function updateDepthSettings() {
+                const is3D = viewer.scene.mode === Cesium.SceneMode.SCENE3D;
+                const dist = (occludeDebris && is3D) ? 0 : Number.POSITIVE_INFINITY;
+                
+                trackedObjects.forEach(obj => {
+                    if (obj.entity.point) {
+                        obj.entity.point.disableDepthTestDistance = dist;
+                    }
+                });
+                
+                if (shuttleEntity && shuttleEntity.point) {
+                    shuttleEntity.point.disableDepthTestDistance = Number.POSITIVE_INFINITY;
+                    shuttleEntity.label.disableDepthTestDistance = Number.POSITIVE_INFINITY;
+                }
+            }
+
+            window.triggerScan = function() {
+                const ring = document.getElementById('scanningEffect');
+                ring.style.display = 'block';
+                setTimeout(() => { ring.style.display = 'none'; }, 1500);
+
+                const now = Cesium.JulianDate.now();
+                const sPos = shuttleEntity.position.getValue(now);
+                if (!sPos) return;
+
+                const debrisWithDist = trackedObjects.map(obj => {
+                    const oPos = obj.entity.position.getValue(now);
+                    return {
+                        obj,
+                        dist: oPos ? Cesium.Cartesian3.distance(sPos, oPos) : Infinity
+                    };
+                });
+
+                debrisWithDist.sort((a, b) => a.dist - b.dist);
+                
+                debrisWithDist.slice(0, 5).forEach(item => {
+                    const originalColor = item.obj.entity.point.color.getValue();
+                    item.obj.entity.point.color = Cesium.Color.WHITE;
+                    item.obj.entity.point.pixelSize = 12;
+                    
+                    setTimeout(() => {
+                        item.obj.entity.point.color = originalColor;
+                        item.obj.entity.point.pixelSize = item.obj.name.includes("MARKER") ? 8 : 3;
+                    }, 3000);
+                });
+            };
+
+            viewer.scene.morphComplete.addEventListener(updateDepthSettings);
+
+            window.clearTarget = function() {
+                selectedObject = null;
+                viewer.selectedEntity = null;
+                if (targetPathEntity) targetPathEntity.polyline.show = false;
+                const targetDisplay = document.getElementById('targetDisplay');
+                if (targetDisplay) targetDisplay.classList.add('hidden');
+            };
+
+            function spawnDebris(lat, lon, alt, mode = 'random') {
+                const isIntercept = mode === 'intercept';
+                const isManual = mode === 'manual';
+                
+                let color = isIntercept ? Cesium.Color.RED : (isManual ? Cesium.Color.FUCHSIA : Cesium.Color.ORANGE);
+                let size = isIntercept ? 10 : (isManual ? 8 : 3);
+                let labelText = isIntercept ? "INT-VEC" : (isManual ? "MARKER" : "DEB");
+
+                const safeLat = Math.max(-85, Math.min(85, lat));
+
+                let vel = {
+                    lon: (Math.random() - 0.5) * 0.08,
+                    lat: (Math.random() - 0.5) * 0.08,
+                    alt: (Math.random() - 0.5) * 20
+                };
+
+                if (isIntercept && shuttleEntity) {
+                    const sPos = shuttleEntity.position.getValue(Cesium.JulianDate.now());
+                    if (sPos) {
+                        const sCarto = Cesium.Cartographic.fromCartesian(sPos);
+                        const sLon = Cesium.Math.toDegrees(sCarto.longitude);
+                        const sLat = Cesium.Math.toDegrees(sCarto.latitude);
+                        vel.lon = (sLon - lon) / 200 + shuttleEntity.vel.lon;
+                        vel.lat = (sLat - safeLat) / 200 + shuttleEntity.vel.lat;
+                        vel.alt = (sCarto.height - alt) / 200;
+                    }
+                }
+
+                const is3D = viewer.scene.mode === Cesium.SceneMode.SCENE3D;
+                const entity = viewer.entities.add({
+                    name: labelText,
+                    position: Cesium.Cartesian3.fromDegrees(lon, safeLat, alt),
+                    point: { 
+                        pixelSize: size, 
+                        color: color, 
+                        outlineWidth: (isIntercept || isManual) ? 2 : 0, 
+                        outlineColor: Cesium.Color.WHITE,
+                        disableDepthTestDistance: (occludeDebris && is3D) ? 0 : Number.POSITIVE_INFINITY 
+                    }
+                });
+
+                const obj = { entity, vel, name: labelText + "-" + (trackedObjects.length + 1) };
+                trackedObjects.push(obj);
+                const countVal = document.getElementById('countVal');
+                if (countVal) countVal.innerText = trackedObjects.length;
+                return obj;
+            }
+
+            const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+            
+            handler.setInputAction((click) => {
+                if (clickTimer) {
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                    return;
+                }
+                clickTimer = setTimeout(() => {
+                    const picked = viewer.scene.pick(click.position);
+                    if (!Cesium.defined(picked)) {
+                        handleSpawn(click.position, 'manual');
+                    }
+                    clickTimer = null;
+                }, 250);
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+            handler.setInputAction((click) => {
+                if (clickTimer) {
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                }
+                handleSpawn(click.position, 'intercept');
+            }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
+            handler.setInputAction((click) => {
+                const picked = viewer.scene.pick(click.position);
+                if (Cesium.defined(picked) && picked.id && picked.id !== shuttleEntity && picked.id !== pathEntity && picked.id !== targetPathEntity) {
+                    const found = trackedObjects.find(o => o.entity === picked.id);
+                    if (found) {
+                        selectedObject = found;
+                        viewer.selectedEntity = found.entity;
+                        targetPathEntity.polyline.show = true;
+                        const targetDisplay = document.getElementById('targetDisplay');
+                        if (targetDisplay) targetDisplay.classList.remove('hidden');
+                    }
+                } else {
+                    clearTarget();
+                }
+            }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+
+            function handleSpawn(pos, mode) {
+                const ray = viewer.camera.getPickRay(pos);
+                const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+                if (cartesian) {
+                    const carto = Cesium.Cartographic.fromCartesian(cartesian);
+                    const shuttlePos = shuttleEntity.position.getValue(Cesium.JulianDate.now());
+                    if (shuttlePos) {
+                        const shuttleCarto = Cesium.Cartographic.fromCartesian(shuttlePos);
+                        spawnDebris(Cesium.Math.toDegrees(carto.latitude), Cesium.Math.toDegrees(carto.longitude), shuttleCarto.height, mode);
+                    }
+                }
+            }
+
+            function getFuturePos(pos, vel, sec) {
+                if (!pos || !vel) return pos;
+                const c = Cesium.Cartographic.fromCartesian(pos);
+                return Cesium.Cartesian3.fromDegrees(
+                    Cesium.Math.toDegrees(c.longitude) + (vel.lon * sec),
+                    Cesium.Math.toDegrees(c.latitude) + (vel.lat * sec),
+                    c.height + (vel.alt * sec)
+                );
+            }
+
+            function getRisk(dist, cpa) {
+                if (isNaN(dist) || isNaN(cpa)) return 0.1;
+                const score = (5000 / (Math.max(0.1, dist) + 1)) + (2000 / (Math.max(0.1, cpa) + 1));
+                let prob = Math.min(99.9, score);
+                return Math.max(0.1, prob);
+            }
+
+            function updateSimulation() {
+                const now = Cesium.JulianDate.now();
+                const sPos = shuttleEntity.position.getValue(now);
+                if (!sPos) return;
+
+                const sC = Cesium.Cartographic.fromCartesian(sPos);
+                const curSLat = Cesium.Math.toDegrees(sC.latitude);
+                const curSLon = Cesium.Math.toDegrees(sC.longitude);
+
+                const locVal = document.getElementById('locVal');
+                const altVal = document.getElementById('altVal');
+                if (locVal) locVal.innerText = `${curSLat.toFixed(2)}° / ${curSLon.toFixed(2)}°`;
+                if (altVal) altVal.innerText = (sC.height / 1000).toFixed(1) + ' KM';
+
+                let minD = Infinity;
+                let collision = false;
+                let warning = false;
+
+                trackedObjects.forEach(obj => {
+                    const oPos = obj.entity.position.getValue(now);
+                    if (!oPos) return;
+
+                    const oC = Cesium.Cartographic.fromCartesian(oPos);
+                    const nLon = Cesium.Math.toDegrees(oC.longitude) + obj.vel.lon;
+                    const nLat = Math.max(-89, Math.min(89, Cesium.Math.toDegrees(oC.latitude) + obj.vel.lat));
+                    const nAlt = oC.height + obj.vel.alt;
+                    
+                    const nextPos = Cesium.Cartesian3.fromDegrees(nLon, nLat, nAlt);
+                    obj.entity.position = nextPos;
+
+                    const d = Cesium.Cartesian3.distance(sPos, nextPos) / 1000;
+                    if (!isNaN(d)) {
+                        if (d < minD) minD = d;
+                        if (d < DANGER_RANGE) collision = true;
+                        else if (d < DETECTION_RANGE) warning = true;
+                    }
+                });
+
+                if (selectedObject && selectedObject.entity) {
+                    const tPos = selectedObject.entity.position.getValue(now);
+                    if (tPos) {
+                        const tDist = Cesium.Cartesian3.distance(sPos, tPos) / 1000;
+                        const sF = getFuturePos(sPos, shuttleEntity.vel, LOOKAHEAD);
+                        const tF = getFuturePos(tPos, selectedObject.vel, LOOKAHEAD);
+                        const cpa = Cesium.Cartesian3.distance(sF, tF) / 1000;
+                        const risk = getRisk(tDist, cpa);
+                        
+                        const targetName = document.getElementById('targetName');
+                        const targetDist = document.getElementById('targetDist');
+                        const targetCpa = document.getElementById('targetCpa');
+                        const targetProb = document.getElementById('targetProb');
+
+                        if (targetName) targetName.innerText = selectedObject.name;
+                        if (targetDist) targetDist.innerText = isNaN(tDist) ? "--" : tDist.toFixed(2) + " KM";
+                        if (targetCpa) targetCpa.innerText = isNaN(cpa) ? "--" : cpa.toFixed(2) + " KM";
+                        if (targetProb) {
+                            targetProb.innerText = isNaN(risk) ? "0.1%" : risk.toFixed(1) + "%";
+                            targetProb.className = risk > 70 ? "text-right font-bold text-red-500 animate-pulse" : (risk > 30 ? "text-right font-bold text-orange-500" : "text-right font-bold text-cyan-400");
+                        }
+                    }
+                }
+
+                const pbVal = document.getElementById('probVal');
+                const proxDisp = document.getElementById('proximityDisplay');
+                const closeDist = document.getElementById('closestDist');
+                const distBar = document.getElementById('distBar');
+
+                if (minD < DETECTION_RANGE && !isNaN(minD)) {
+                    if (proxDisp) proxDisp.classList.remove('hidden');
+                    if (closeDist) closeDist.innerText = minD.toFixed(1) + " KM";
+                    const dLvl = Math.max(0, 100 - (minD / DETECTION_RANGE * 100));
+                    if (distBar) distBar.style.width = dLvl + "%";
+                    if (pbVal) pbVal.innerText = dLvl.toFixed(0) + "%";
+                } else {
+                    if (proxDisp) proxDisp.classList.add('hidden');
+                    if (pbVal) pbVal.innerText = "0%";
+                }
+
+                const dangerAlert = document.getElementById('dangerAlert');
+                const warningAlert = document.getElementById('warningAlert');
+                const statusPanel = document.getElementById('statusPanel');
+
+                if (dangerAlert) dangerAlert.classList.toggle('hidden', !collision);
+                if (warningAlert) warningAlert.classList.toggle('hidden', !warning || collision);
+                if (statusPanel) statusPanel.classList.toggle('collision-danger', collision);
+
+                shuttleEntity.position = Cesium.Cartesian3.fromDegrees(
+                    curSLon + shuttleEntity.vel.lon,
+                    curSLat + shuttleEntity.vel.lat,
+                    sC.height
+                );
+            }
+
+            createShuttle();
+            for(let i=0; i<200; i++) {
+                spawnDebris((Math.random()*150)-75, (Math.random()*360)-180, 390000 + (Math.random()*20000));
+            }
+            setInterval(updateSimulation, 50);
+        });
+    </script>
+</body>
+</html>
